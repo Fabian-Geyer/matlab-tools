@@ -1,7 +1,7 @@
 function h = plot(x, y, varargin)
     % Create a new figure or use the current one
     if isempty(findobj('Type', 'figure'))
-        h = figure;
+        h = hfigure('generic plot');
     else
         h = gcf;
     end
