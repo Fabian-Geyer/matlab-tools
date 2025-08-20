@@ -10,7 +10,7 @@ function h = plot(x, y, varargin)
     plotHandle = plot(x, y, varargin{:});
 
     % Apply default settings
-    set(plotHandle, 'LineWidth', 1); % Set default line width
+    % set(plotHandle, 'LineWidth', 2); % Set default line width
     set(gca, 'TickLabelInterpreter', 'latex'); % Set interpreter for tick labels
     set(gca, 'FontSize', 12); % Set default font size
     title('', 'Interpreter', 'latex'); % Set title interpreter
