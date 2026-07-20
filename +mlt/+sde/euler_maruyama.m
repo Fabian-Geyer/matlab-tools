@@ -1,4 +1,4 @@
-function [t, X] = euler_maruyama(drift_term, diff_term, x0, T, N, W)
+function [t, X] = euler_maruyama(drift_term, diff_term, x0, T, N, W, proj)
     % EULER_MARUYAMA Simulates an SDE using the Euler-Maruyama method.
     %
     % INPUTS:
@@ -8,65 +8,76 @@ function [t, X] = euler_maruyama(drift_term, diff_term, x0, T, N, W)
     %   T          - Total simulation time horizon.
     %   N          - Number of time steps.
     %   W          - (Optional) Standard normal random variables (nw x N).
+    %   proj       - (Optional) State projection applied AFTER each step, as a
+    %                function handle @(x)->x. Use it to keep the state on a
+    %                manifold, e.g. proj = @(x)[x(1:2)/norm(x(1:2)); x(3)] to
+    %                renormalise an S^1 block, or the S^3 analogue for
+    %                quaternions. Applied in both the numeric and symbolic
+    %                branches.
     %
     % OUTPUTS:
     %   t          - Time vector (1 x N+1)
     %   X          - State trajectory (nx x N+1).
 
     import casadi.*
-    
+
     dt = T / N;
     t = linspace(0, T, N+1);
     nx = size(x0, 1);
-    
+
+    % Optional projection onto a constraint manifold after each step
+    has_proj = nargin >= 7 && ~isempty(proj);
+
     % Evaluate diffusion term at x0 to find the number of noise dimensions (nw)
     g_eval = evaluate_term(diff_term, x0);
-    
+
     if nargin < 6 || isempty(W)
         nw = size(g_eval, 2);
-        W = randn(nw, N); 
+        W = randn(nw, N);
     else
         nw = size(W, 1);
     end
-    
+
     % Check if we are building a symbolic graph or doing purely numerical simulation
     is_symbolic = isa(x0, 'casadi.MX') || isa(x0, 'casadi.SX') || ...
                   isa(W, 'casadi.MX') || isa(W, 'casadi.SX') || ...
                   isa(g_eval, 'casadi.MX') || isa(g_eval, 'casadi.SX');
-    
+
     if is_symbolic
         % SYMBOLIC UNROLLING
         X_cell = cell(1, N+1);
         X_cell{1} = x0;
         x_curr = x0;
-        
+
         for k = 1:N
             dW_k = W(:, k) * sqrt(dt);
-            
+
             f_val = evaluate_term(drift_term, x_curr);
             g_val = evaluate_term(diff_term, x_curr);
-            
+
             x_next = x_curr + f_val * dt + g_val * dW_k;
-            
+            if has_proj, x_next = proj(x_next); end
+
             X_cell{k+1} = x_next;
             x_curr = x_next;
         end
-        
+
         X = horzcat(X_cell{:});
-        
+
     else
         % NUMERIC EVALUATION
         X = zeros(nx, N+1);
         X(:, 1) = full(x0);
         x_curr = full(x0);
-        
+
         for k = 1:N
             dW_k = W(:, k) * sqrt(dt);
-            
+
             f_val = full(evaluate_term(drift_term, x_curr));
             g_val = full(evaluate_term(diff_term, x_curr));
-            
+
             x_curr = x_curr + f_val * dt + g_val * dW_k;
+            if has_proj, x_curr = proj(x_curr); end
             X(:, k+1) = x_curr;
         end
     end
